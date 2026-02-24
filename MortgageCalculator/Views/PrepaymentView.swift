@@ -368,12 +368,18 @@ struct EditPrepaymentSheet: View {
     private func saveChanges() {
         guard let amount = Double(prepaymentAmount) else { return }
 
+        // 创建新的 PrepaymentNode 来替换旧的，确保触发 @Binding 更新
+        let updatedNode = PrepaymentNode(
+            id: node.id,
+            prepaymentDate: prepaymentDate,
+            prepaymentAmount: amount,
+            prepaymentType: prepaymentType,
+            targetLoanType: targetLoanType,
+            canShortenTerm: targetLoanType == .commercial && prepaymentType == .shortenTerm
+        )
+
         if let index = prepayments.firstIndex(where: { $0.id == node.id }) {
-            prepayments[index].prepaymentDate = prepaymentDate
-            prepayments[index].prepaymentAmount = amount
-            prepayments[index].prepaymentType = prepaymentType
-            prepayments[index].targetLoanType = targetLoanType
-            prepayments[index].canShortenTerm = targetLoanType == .commercial && prepaymentType == .shortenTerm
+            prepayments[index] = updatedNode
         }
 
         onSave()

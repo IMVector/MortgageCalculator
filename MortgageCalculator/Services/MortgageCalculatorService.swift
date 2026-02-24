@@ -70,17 +70,18 @@ final class MortgageCalculatorService {
             var principalPaid = monthlyPayment - interest
 
             // 处理提前还款
+            var extraPayment = 0.0
             if let prepayment = currentPrepayment {
-                let totalPayment = prepayment.prepaymentAmount + principalPaid
-                if totalPayment >= remainingPrincipal + interest {
+                extraPayment = min(prepayment.prepaymentAmount, remainingPrincipal - principalPaid)
+
+                if principalPaid + extraPayment >= remainingPrincipal {
                     // 提前还清
                     principalPaid = remainingPrincipal
-                    monthlyPayment = principalPaid + interest
+                    extraPayment = 0
                     remainingPrincipal = 0
                 } else {
                     // 部分提前还款
-                    principalPaid = min(totalPayment - interest, remainingPrincipal)
-                    remainingPrincipal -= principalPaid
+                    remainingPrincipal -= (principalPaid + extraPayment)
 
                     // 处理提前还款后的还款方式
                     if prepayment.prepaymentType == .shortenTerm {
@@ -95,11 +96,14 @@ final class MortgageCalculatorService {
                 remainingPrincipal -= principalPaid
             }
 
+            // 当月还款 = 原月供 + 提前还款金额
+            let actualMonthlyPayment = monthlyPayment + extraPayment
+
             let payment = MonthlyPayment(
                 id: monthIndex,
                 date: currentDate,
-                monthlyPayment: monthlyPayment,
-                principal: principalPaid,
+                monthlyPayment: actualMonthlyPayment,
+                principal: principalPaid + extraPayment,
                 interest: interest,
                 remainingPrincipal: max(0, remainingPrincipal),
                 loanType: loan.loanType
@@ -165,19 +169,19 @@ final class MortgageCalculatorService {
             // 当期利息 = 剩余本金 × 月利率
             let interest = remainingPrincipal * loan.monthlyRate
             var principalPaid = min(monthlyPrincipal, remainingPrincipal)
+            var extraPayment = 0.0  // 提前还款金额（用于显示，不包含在 principalPaid 中）
 
             // 处理提前还款
             if let prepayment = currentPrepayment {
-                let prepaymentPrincipal = min(prepayment.prepaymentAmount, remainingPrincipal - principalPaid)
+                extraPayment = min(prepayment.prepaymentAmount, remainingPrincipal - principalPaid)
 
                 if prepayment.prepaymentType == .shortenTerm {
                     // 缩短期限：保持每月本金不变，减少期数
-                    principalPaid += prepaymentPrincipal
-                    remainingPrincipal -= principalPaid
+                    remainingPrincipal -= (principalPaid + extraPayment)
                     // 月供本金不变，期数自动减少
                 } else {
                     // 减少月供：保持期数不变，减少每月本金
-                    remainingPrincipal -= principalPaid + prepaymentPrincipal
+                    remainingPrincipal -= (principalPaid + extraPayment)
                     // 重新计算剩余期数的每月本金
                     remainingMonths = max(1, remainingMonths - monthIndex + 1)
                     monthlyPrincipal = remainingPrincipal / Double(remainingMonths)
@@ -192,12 +196,13 @@ final class MortgageCalculatorService {
                 remainingPrincipal = 0
             }
 
-            let monthlyPayment = principalPaid + interest
+            // 当月还款 = 本金 + 利息 + 提前还款金额
+            let monthlyPayment = principalPaid + interest + extraPayment
             let payment = MonthlyPayment(
                 id: monthIndex,
                 date: currentDate,
                 monthlyPayment: monthlyPayment,
-                principal: principalPaid,
+                principal: principalPaid + extraPayment,
                 interest: interest,
                 remainingPrincipal: max(0, remainingPrincipal),
                 loanType: loan.loanType

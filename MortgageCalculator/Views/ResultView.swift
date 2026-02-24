@@ -15,10 +15,8 @@ struct ResultView: View {
             ScrollView {
                 if let result = result {
                     VStack(spacing: 16) {
-                        // 汇总卡片
                         SummaryCards(result: result)
 
-                        // 提前还款快捷入口
                         if commercialLoan != nil || providentFundLoan != nil {
                             PrepaymentQuickEntry(
                                 prepayments: $prepayments,
@@ -31,7 +29,6 @@ struct ResultView: View {
                             )
                         }
 
-                        // 商业贷款详情
                         if !result.commercialSegments.isEmpty {
                             LoanDetailSection(
                                 title: "商业贷款",
@@ -41,7 +38,6 @@ struct ResultView: View {
                             )
                         }
 
-                        // 公积金贷款详情
                         if !result.providentFundSegments.isEmpty {
                             LoanDetailSection(
                                 title: "公积金贷款",
@@ -51,7 +47,6 @@ struct ResultView: View {
                             )
                         }
 
-                        // 底部留白
                         Color.clear.frame(height: 20)
                     }
                     .padding()
@@ -84,7 +79,6 @@ struct ResultView: View {
     private var emptyStateView: some View {
         VStack(spacing: 24) {
             Spacer()
-
             Image(systemName: "house.circle.fill")
                 .font(.system(size: 80))
                 .foregroundStyle(
@@ -94,17 +88,14 @@ struct ResultView: View {
                         endPoint: .bottomTrailing
                     )
                 )
-
             VStack(spacing: 8) {
                 Text("开始计算您的房贷")
                     .font(.title2.bold())
-
                 Text("请在「贷款输入」页面填写贷款信息")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
-
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -120,8 +111,23 @@ struct PrepaymentQuickEntry: View {
     let onEdit: (PrepaymentNode) -> Void
     let onDelete: (PrepaymentNode) -> Void
 
+    @State private var isExpanded = false
+
+    private var sortedPrepayments: [PrepaymentNode] {
+        prepayments.sorted(by: { $0.prepaymentDate < $1.prepaymentDate })
+    }
+
+    private var displayPrepayments: [PrepaymentNode] {
+        if isExpanded {
+            return sortedPrepayments
+        } else {
+            return Array(sortedPrepayments.prefix(3))
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
+            // 标题栏
             Button(action: onAdd) {
                 HStack {
                     Image(systemName: "plus.circle.fill")
@@ -148,32 +154,44 @@ struct PrepaymentQuickEntry: View {
             }
             .buttonStyle(.plain)
 
+            // 记录列表
             if !prepayments.isEmpty {
-                Divider()
-                    .padding(.leading)
+                Divider().padding(.leading)
 
-                // 最多显示3条，用 LazyVStack 优化
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(prepayments.sorted(by: { $0.prepaymentDate < $1.prepaymentDate }).prefix(3).enumerated()), id: \.element.id) { index, node in
+                VStack(spacing: 0) {
+                    ForEach(Array(displayPrepayments.enumerated()), id: \.element.id) { index, node in
                         VStack(spacing: 0) {
                             PrepaymentMiniCard(
                                 node: node,
                                 onEdit: { onEdit(node) },
                                 onDelete: { onDelete(node) }
                             )
-                            if index < min(prepayments.count, 3) - 1 {
+                            if index < displayPrepayments.count - 1 {
                                 Divider().padding(.leading)
                             }
                         }
                     }
 
+                    // 展开/收起按钮
                     if prepayments.count > 3 {
-                        Text("还有 \(prepayments.count - 3) 条记录")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isExpanded.toggle()
+                            }
+                        }) {
+                            HStack {
+                                Text(isExpanded ? "收起" : "还有 \(prepayments.count - 3) 条记录，点击展开")
+                                    .font(.caption)
+                                    .foregroundColor(.accentColor)
+                                Spacer()
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                             .padding()
-                            .frame(maxWidth: .infinity)
                             .background(Color(.systemBackground))
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -219,7 +237,6 @@ struct PrepaymentMiniCard: View {
 
             Spacer()
 
-            // 删除按钮
             Button(action: onDelete) {
                 Image(systemName: "trash")
                     .font(.caption)
@@ -246,7 +263,6 @@ struct SummaryCards: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            // 总贷款金额 & 总利息
             HStack(spacing: 16) {
                 SummaryItem(
                     title: "总贷款金额",
@@ -268,7 +284,6 @@ struct SummaryCards: View {
 
             Divider()
 
-            // 月供信息
             HStack(spacing: 16) {
                 if let commercialPayment = result.commercialMonthlyPayments.first {
                     VStack(alignment: .leading, spacing: 4) {
@@ -301,7 +316,6 @@ struct SummaryCards: View {
                 }
             }
 
-            // 合计月供
             if let commercialPayment = result.commercialMonthlyPayments.first,
                let providentFundPayment = result.providentFundMonthlyPayments.first {
                 Divider()
@@ -370,11 +384,10 @@ struct LoanDetailSection: View {
     let monthlyPayments: [MonthlyPayment]
 
     @State private var isSectionExpanded = true
-    @State private var expandedSegments: Set<UUID> = []
+    @State private var expandedSegmentMonths: Set<Int> = []
 
     var body: some View {
         VStack(spacing: 0) {
-            // 标题栏
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.25)) {
                     isSectionExpanded.toggle()
@@ -403,24 +416,23 @@ struct LoanDetailSection: View {
             }
             .buttonStyle(.plain)
 
-            // 内容区
             if isSectionExpanded {
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(segments.enumerated()), id: \.element.id) { index, segment in
+                    ForEach(Array(segments.enumerated()), id: \.element.startMonth) { index, segment in
                         CollapsibleSegmentRow(
                             segment: segment,
                             color: color,
                             monthlyPayments: monthlyPayments.filter {
                                 $0.id >= segment.startMonth && $0.id <= segment.endMonth
                             },
-                            isExpanded: expandedSegments.contains(segment.id),
+                            isExpanded: expandedSegmentMonths.contains(segment.startMonth),
                             isLast: index == segments.count - 1,
                             onToggle: {
                                 withAnimation(.easeInOut(duration: 0.2)) {
-                                    if expandedSegments.contains(segment.id) {
-                                        expandedSegments.remove(segment.id)
+                                    if expandedSegmentMonths.contains(segment.startMonth) {
+                                        expandedSegmentMonths.remove(segment.startMonth)
                                     } else {
-                                        expandedSegments.insert(segment.id)
+                                        expandedSegmentMonths.insert(segment.startMonth)
                                     }
                                 }
                             }
@@ -445,10 +457,16 @@ struct CollapsibleSegmentRow: View {
     let isLast: Bool
     let onToggle: () -> Void
 
+    @State private var localExpanded: Bool = false
+
     var body: some View {
         VStack(spacing: 0) {
-            // 段标题
-            Button(action: onToggle) {
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    localExpanded.toggle()
+                    onToggle()
+                }
+            }) {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
@@ -482,7 +500,7 @@ struct CollapsibleSegmentRow: View {
                                 .foregroundColor(.secondary)
                         }
 
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        Image(systemName: localExpanded ? "chevron.up" : "chevron.down")
                             .font(.caption.weight(.semibold))
                             .foregroundColor(.secondary)
                     }
@@ -491,11 +509,15 @@ struct CollapsibleSegmentRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .onAppear {
+                localExpanded = isExpanded
+            }
+            .onChange(of: isExpanded) { _, newValue in
+                localExpanded = newValue
+            }
 
-            // 展开内容 - 使用 LazyVStack 优化性能
-            if isExpanded {
+            if localExpanded {
                 VStack(spacing: 0) {
-                    // 表头
                     HStack(spacing: 4) {
                         Text("期数")
                             .frame(width: 40, alignment: .leading)
@@ -503,11 +525,11 @@ struct CollapsibleSegmentRow: View {
                             .frame(width: 60, alignment: .leading)
                         Spacer()
                         Text("月供")
-                            .frame(width: 60, alignment: .trailing)
+                            .frame(width: 70, alignment: .trailing)
                         Text("本金")
-                            .frame(width: 55, alignment: .trailing)
+                            .frame(width: 65, alignment: .trailing)
                         Text("利息")
-                            .frame(width: 50, alignment: .trailing)
+                            .frame(width: 60, alignment: .trailing)
                     }
                     .font(.caption2.weight(.medium))
                     .foregroundColor(.secondary)
@@ -515,7 +537,6 @@ struct CollapsibleSegmentRow: View {
                     .padding(.vertical, 8)
                     .background(Color(.systemGray6).opacity(0.5))
 
-                    // 使用 LazyVStack 优化长列表
                     LazyVStack(spacing: 0) {
                         ForEach(monthlyPayments) { payment in
                             CompactMonthlyPaymentRow(payment: payment, color: color)
@@ -524,7 +545,7 @@ struct CollapsibleSegmentRow: View {
                 }
             }
 
-            if !isLast && !isExpanded {
+            if !isLast && !localExpanded {
                 Divider()
                     .padding(.leading)
             }
@@ -552,17 +573,17 @@ struct CompactMonthlyPaymentRow: View {
             Text(formatAmount(payment.monthlyPayment))
                 .font(.caption.weight(.medium))
                 .foregroundColor(color)
-                .frame(width: 60, alignment: .trailing)
+                .frame(width: 70, alignment: .trailing)
 
             Text(formatAmount(payment.principal))
                 .font(.caption)
                 .foregroundColor(.secondary)
-                .frame(width: 55, alignment: .trailing)
+                .frame(width: 65, alignment: .trailing)
 
             Text(formatAmount(payment.interest))
                 .font(.caption)
                 .foregroundColor(.orange)
-                .frame(width: 50, alignment: .trailing)
+                .frame(width: 60, alignment: .trailing)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
