@@ -28,8 +28,7 @@ struct LoanInputView: View {
                         subtitle: "商业住房贷款",
                         loan: $commercialLoan,
                         isExpanded: $showCommercialInput,
-                        onDelete: { commercialLoan = nil; onCalculate() },
-                        onCalculate: onCalculate
+                        onDelete: { commercialLoan = nil }
                     )
 
                     // 公积金贷款卡片
@@ -41,8 +40,7 @@ struct LoanInputView: View {
                         loan: $providentFundLoan,
                         isExpanded: $showProvidentFundInput,
                         isProvidentFund: true,
-                        onDelete: { providentFundLoan = nil; onCalculate() },
-                        onCalculate: onCalculate
+                        onDelete: { providentFundLoan = nil }
                     )
 
                     // 计算按钮
@@ -123,7 +121,6 @@ struct LoanCard: View {
     @Binding var isExpanded: Bool
     var isProvidentFund: Bool = false
     let onDelete: () -> Void
-    let onCalculate: () -> Void
 
     @State private var principal: String = ""
     @State private var annualRate: String = "3.1"
@@ -269,7 +266,7 @@ struct LoanCard: View {
                     Button(action: saveLoan) {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
-                            Text("保存并计算")
+                            Text("保存")
                         }
                         .font(.headline)
                         .frame(maxWidth: .infinity)
@@ -290,6 +287,16 @@ struct LoanCard: View {
             // 设置默认利率
             if annualRate == "3.1" {
                 annualRate = isProvidentFund ? "2.85" : "4.2"
+            }
+        }
+        .onChange(of: isExpanded) { _, newValue in
+            // 展开时同步已保存的贷款数据到输入字段
+            if newValue, let loan = loan {
+                principal = String(loan.principal / 10000) // 元转万元
+                annualRate = String(loan.annualRate)
+                loanTermYears = String(loan.loanTermMonths / 12)
+                startDate = loan.startDate
+                repaymentType = loan.repaymentType
             }
         }
     }
@@ -315,7 +322,6 @@ struct LoanCard: View {
             repaymentType: repaymentType
         )
 
-        onCalculate()
         withAnimation(.easeInOut(duration: 0.25)) {
             isExpanded = false
         }

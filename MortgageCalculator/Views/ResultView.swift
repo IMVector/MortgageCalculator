@@ -21,9 +21,13 @@ struct ResultView: View {
                         // 提前还款快捷入口
                         if commercialLoan != nil || providentFundLoan != nil {
                             PrepaymentQuickEntry(
-                                prepayments: prepayments,
+                                prepayments: $prepayments,
                                 onAdd: { showingAddPrepayment = true },
-                                onEdit: { editingPrepayment = $0 }
+                                onEdit: { editingPrepayment = $0 },
+                                onDelete: { node in
+                                    prepayments.removeAll { $0.id == node.id }
+                                    onRecalculate()
+                                }
                             )
                         }
 
@@ -111,9 +115,10 @@ struct ResultView: View {
 // MARK: - 提前还款快捷入口
 
 struct PrepaymentQuickEntry: View {
-    let prepayments: [PrepaymentNode]
+    @Binding var prepayments: [PrepaymentNode]
     let onAdd: () -> Void
     let onEdit: (PrepaymentNode) -> Void
+    let onDelete: (PrepaymentNode) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -149,8 +154,17 @@ struct PrepaymentQuickEntry: View {
 
                 // 最多显示3条，用 LazyVStack 优化
                 LazyVStack(spacing: 0) {
-                    ForEach(prepayments.sorted(by: { $0.prepaymentDate < $1.prepaymentDate }).prefix(3)) { node in
-                        PrepaymentMiniCard(node: node, onEdit: { onEdit(node) })
+                    ForEach(Array(prepayments.sorted(by: { $0.prepaymentDate < $1.prepaymentDate }).prefix(3).enumerated()), id: \.element.id) { index, node in
+                        VStack(spacing: 0) {
+                            PrepaymentMiniCard(
+                                node: node,
+                                onEdit: { onEdit(node) },
+                                onDelete: { onDelete(node) }
+                            )
+                            if index < min(prepayments.count, 3) - 1 {
+                                Divider().padding(.leading)
+                            }
+                        }
                     }
 
                     if prepayments.count > 3 {
@@ -173,10 +187,11 @@ struct PrepaymentQuickEntry: View {
 struct PrepaymentMiniCard: View {
     let node: PrepaymentNode
     let onEdit: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
-        Button(action: onEdit) {
-            HStack {
+        HStack {
+            Button(action: onEdit) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
                         Text(formatDate(node.prepaymentDate))
@@ -199,21 +214,22 @@ struct PrepaymentMiniCard: View {
                     }
                     .font(.caption)
                 }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
-        }
-        .buttonStyle(.plain)
+            .buttonStyle(.plain)
 
-        if node.id != node.id { // 只在非最后一条显示分割线（用条件判断替代）
-            Divider().padding(.leading)
+            Spacer()
+
+            // 删除按钮
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.caption)
+                    .foregroundColor(.red.opacity(0.7))
+                    .padding(8)
+            }
+            .buttonStyle(.plain)
         }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 
     private func formatDate(_ date: Date) -> String {
