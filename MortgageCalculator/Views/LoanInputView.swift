@@ -160,9 +160,9 @@ struct LoanCard: View {
 
                         if let loan = loan {
                             HStack(spacing: 4) {
-                                Text("\(MortgageCalculatorService.formatCurrency(loan.principal)) 万")
+                                Text("\(MortgageCalculatorService.formatCurrency(loan.principal / 10000)) 万")
                                 Text("·")
-                                Text("\(loan.loanTermMonths)期")
+                                Text("\(loan.loanTermMonths / 12)年")
                                 Text("·")
                                 Text("\(String(format: "%.2f", loan.annualRate))%")
                             }

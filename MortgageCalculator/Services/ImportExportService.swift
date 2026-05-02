@@ -72,9 +72,6 @@ final class ImportExportService {
         // 计算结果汇总
         text += "【计算结果】\n"
 
-        let totalCommercialPayment = result.commercialLoan.map { $0.principal } ?? 0
-        let totalProvidentFundPayment = result.providentFundLoan.map { $0.principal } ?? 0
-
         if let commercial = result.commercialLoan {
             text += "商业贷款:\n"
             text += "  月供: \(MortgageCalculatorService.formatCurrency(result.commercialMonthlyPayments.first?.monthlyPayment ?? 0)) 元\n"

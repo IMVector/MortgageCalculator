@@ -183,7 +183,7 @@ final class MortgageCalculatorService {
                     // 减少月供：保持期数不变，减少每月本金
                     remainingPrincipal -= (principalPaid + extraPayment)
                     // 重新计算剩余期数的每月本金
-                    remainingMonths = max(1, remainingMonths - monthIndex + 1)
+                    remainingMonths = max(1, loan.loanTermMonths - monthIndex + 1)
                     monthlyPrincipal = remainingPrincipal / Double(remainingMonths)
                 }
             } else {
