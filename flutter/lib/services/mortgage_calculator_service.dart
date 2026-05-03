@@ -43,12 +43,12 @@ class MortgageCalculatorService {
     var nextPrepaymentIndex = 0;
 
     while (remainingPrincipal > 0.01) {
-      // 检查是否有提前还款
-      PrepaymentNode? currentPrepayment;
+      // 收集本期所有到期的提前还款（修复：同一账单期内多个提前还款不能丢弃）
+      final currentPrepayments = <PrepaymentNode>[];
       while (nextPrepaymentIndex < sortedPrepayments.length) {
         final prepayment = sortedPrepayments[nextPrepaymentIndex];
         if (!prepayment.prepaymentDate.isAfter(currentDate)) {
-          currentPrepayment = prepayment;
+          currentPrepayments.add(prepayment);
           nextPrepaymentIndex += 1;
         } else {
           break;
@@ -72,44 +72,33 @@ class MortgageCalculatorService {
       final interest = remainingPrincipal * loan.monthlyRate;
       var principalPaid = monthlyPayment - interest;
 
-      // 处理提前还款
-      var extraPayment = 0.0;
-      if (currentPrepayment != null) {
-        extraPayment = min(
-          currentPrepayment.prepaymentAmount,
-          remainingPrincipal - principalPaid,
+      // 处理所有提前还款
+      var totalExtraPayment = 0.0;
+      for (final prepayment in currentPrepayments) {
+        final extraPayment = min(
+          prepayment.prepaymentAmount,
+          remainingPrincipal - principalPaid - totalExtraPayment,
         );
+        totalExtraPayment += extraPayment;
 
-        if (principalPaid + extraPayment >= remainingPrincipal) {
+        if (principalPaid + totalExtraPayment >= remainingPrincipal) {
           // 提前还清
-          principalPaid = remainingPrincipal;
-          extraPayment = 0;
-          remainingPrincipal = 0;
-        } else {
-          // 部分提前还款
-          remainingPrincipal -= (principalPaid + extraPayment);
-
-          // 处理提前还款后的还款方式
-          if (currentPrepayment.prepaymentType == PrepaymentType.shortenTerm) {
-            // 缩短期限：保持月供不变，减少期数
-            // 期数已经在循环中自然减少
-          } else {
-            // 减少月供：保持期数不变，减少月供
-            // 循环将继续，但每月还款额会重新计算
-          }
+          principalPaid = remainingPrincipal - totalExtraPayment + extraPayment;
+          totalExtraPayment = remainingPrincipal - principalPaid;
+          break;
         }
-      } else {
-        remainingPrincipal -= principalPaid;
       }
 
+      remainingPrincipal -= (principalPaid + totalExtraPayment);
+
       // 当月还款 = 原月供 + 提前还款金额
-      final actualMonthlyPayment = monthlyPayment + extraPayment;
+      final actualMonthlyPayment = monthlyPayment + totalExtraPayment;
 
       final payment = MonthlyPayment(
         id: monthIndex,
         date: currentDate,
         monthlyPayment: actualMonthlyPayment,
-        principal: principalPaid + extraPayment,
+        principal: principalPaid + totalExtraPayment,
         interest: interest,
         remainingPrincipal: max(0, remainingPrincipal),
         loanType: loan.loanType,
@@ -166,11 +155,12 @@ class MortgageCalculatorService {
     var nextPrepaymentIndex = 0;
 
     while (remainingPrincipal > 0.01 && monthIndex <= loan.loanTermMonths * 2) {
-      PrepaymentNode? currentPrepayment;
+      // 收集本期所有到期的提前还款（修复：同一账单期内多个提前还款不能丢弃）
+      final currentPrepayments = <PrepaymentNode>[];
       while (nextPrepaymentIndex < sortedPrepayments.length) {
         final prepayment = sortedPrepayments[nextPrepaymentIndex];
         if (!prepayment.prepaymentDate.isAfter(currentDate)) {
-          currentPrepayment = prepayment;
+          currentPrepayments.add(prepayment);
           nextPrepaymentIndex += 1;
         } else {
           break;
@@ -180,29 +170,26 @@ class MortgageCalculatorService {
       // 当期利息 = 剩余本金 * 月利率
       final interest = remainingPrincipal * loan.monthlyRate;
       var principalPaid = min(monthlyPrincipal, remainingPrincipal);
-      var extraPayment = 0.0;
+      var totalExtraPayment = 0.0;
 
-      // 处理提前还款
-      if (currentPrepayment != null) {
-        extraPayment = min(
-          currentPrepayment.prepaymentAmount,
-          remainingPrincipal - principalPaid,
+      // 处理所有提前还款
+      for (final prepayment in currentPrepayments) {
+        final extraPayment = min(
+          prepayment.prepaymentAmount,
+          remainingPrincipal - principalPaid - totalExtraPayment,
         );
+        totalExtraPayment += extraPayment;
 
-        if (currentPrepayment.prepaymentType == PrepaymentType.shortenTerm) {
+        if (prepayment.prepaymentType == PrepaymentType.shortenTerm) {
           // 缩短期限：保持每月本金不变，减少期数
-          remainingPrincipal -= (principalPaid + extraPayment);
-          // 月供本金不变，期数自动减少
         } else {
           // 减少月供：保持期数不变，减少每月本金
-          remainingPrincipal -= (principalPaid + extraPayment);
-          // 重新计算剩余期数的每月本金
           remainingMonths = max(1, loan.loanTermMonths - monthIndex + 1);
-          monthlyPrincipal = remainingPrincipal / remainingMonths;
+          monthlyPrincipal = (remainingPrincipal - principalPaid - totalExtraPayment) / remainingMonths;
         }
-      } else {
-        remainingPrincipal -= principalPaid;
       }
+
+      remainingPrincipal -= (principalPaid + totalExtraPayment);
 
       // 最后一期调整
       if (remainingPrincipal < 0.01) {
@@ -211,12 +198,12 @@ class MortgageCalculatorService {
       }
 
       // 当月还款 = 本金 + 利息 + 提前还款金额
-      final monthlyPayment = principalPaid + interest + extraPayment;
+      final monthlyPayment = principalPaid + interest + totalExtraPayment;
       final payment = MonthlyPayment(
         id: monthIndex,
         date: currentDate,
         monthlyPayment: monthlyPayment,
-        principal: principalPaid + extraPayment,
+        principal: principalPaid + totalExtraPayment,
         interest: interest,
         remainingPrincipal: max(0, remainingPrincipal),
         loanType: loan.loanType,
