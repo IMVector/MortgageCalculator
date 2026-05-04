@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/models.dart';
 import '../services/data_manager.dart';
+import '../services/loan_comparison_service.dart';
 import '../services/mortgage_calculator_service.dart';
 import 'loan_input_screen.dart';
 import 'result_screen.dart';
@@ -17,6 +18,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   LoanCalculationResult? _calculationResult;
+  LoanComparisonResult? _comparisonResult;
 
   @override
   void initState() {
@@ -29,13 +31,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _calculateLoan() {
     final data = context.read<DataManager>();
-    final result = MortgageCalculatorService.calculateLoan(
+
+    // Original calculation without prepayments (baseline for comparison)
+    final originalResult = MortgageCalculatorService.calculateLoan(
+      commercial: data.commercialLoan,
+      providentFund: data.providentFundLoan,
+      prepayments: const [],
+    );
+
+    // Current calculation with actual prepayments
+    final currentResult = MortgageCalculatorService.calculateLoan(
       commercial: data.commercialLoan,
       providentFund: data.providentFundLoan,
       prepayments: data.prepayments.toList(),
     );
+
+    final comparison = LoanComparisonService.compare(
+      originalResult,
+      currentResult,
+    );
+
     setState(() {
-      _calculationResult = result;
+      _calculationResult = currentResult;
+      _comparisonResult = comparison;
     });
   }
 
@@ -63,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
           LoanInputScreen(onCalculate: _onCalculate),
           ResultScreen(
             result: _calculationResult,
+            comparisonResult: _comparisonResult,
             onRecalculate: _onRecalculate,
           ),
         ],

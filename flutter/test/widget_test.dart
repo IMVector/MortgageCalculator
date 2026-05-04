@@ -12,7 +12,7 @@ import 'package:mortgage_calculator/app.dart';
 void main() {
   testWidgets('App renders smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(const MortgageCalculatorApp());
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     // Verify that the app builds without errors.
     expect(find.byType(MortgageCalculatorApp), findsOneWidget);
